@@ -1,0 +1,23 @@
+{
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:pull": "drizzle-kit pull",
+    "db:typegen": "supabase gen types typescript --project-id \"slstnesnhgwtcaxyajjx\" --schema public > database.types.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.14",
+    "drizzle-kit": "^0.31.4",
+    "supabase": "^2.31.4"
+  },
+  "dependencies": {
+    "@langchain/community": "^0.3.49",
+    "@langchain/core": "^0.3.66",
+    "@langchain/openai": "^0.6.3",
+    "@supabase/supabase-js": "^2.51.0",
+    "dotenv": "^17.2.0",
+    "drizzle-orm": "^0.44.3",
+    "langchain": "^0.3.30",
+    "postgres": "^3.4.7"
+  }
+}
