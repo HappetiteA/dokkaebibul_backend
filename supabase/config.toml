@@ -351,3 +351,14 @@ entrypoint = "./functions/generate-ai-msg/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/generate-ai-msg/*.html" ]
+
+[functions.trigger-ai-msg]
+enabled = true
+verify_jwt = true
+import_map = "./functions/trigger-ai-msg/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/trigger-ai-msg/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/trigger-ai-msg/*.html" ]
