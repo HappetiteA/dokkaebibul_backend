@@ -52,9 +52,24 @@ Deno.serve(async (req) => {
   }
 
   // check if partner has enabled ai
+  const partnerId = conv.user1_id === senderId ? conv.user2_id : conv.user1_id;
+
+  const { data: partner, error: partnerError } = await supabase
+    .from("profiles")
+    .select("is_ai_enabled")
+    .eq("id", partnerId)
+    .single();
+  if (partnerError || !partner) {
+    return new Response(JSON.stringify({ error: "Partner not found", details: partnerError }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (
-    (conv.user1_id === senderId && (!conv.user2_chat_enabled || !conv.user2_ai_enabled)) ||
-    (conv.user2_id === senderId && (!conv.user1_chat_enabled || !conv.user1_ai_enabled))
+    (conv.user1_id === senderId &&
+      !(partner.is_ai_enabled && conv.user2_chat_enabled && conv.user2_ai_enabled)) ||
+    (conv.user2_id === senderId &&
+      !(partner.is_ai_enabled && conv.user1_chat_enabled && conv.user1_ai_enabled))
   ) {
     return new Response(null, {
       status: 204,
@@ -65,7 +80,6 @@ Deno.serve(async (req) => {
   // generate ai chat
   const targetFunctionUrl = `${supabaseUrl}/functions/v1/generate-ai-msg`;
 
-  const newSenderId = conv.user1_id === senderId ? conv.user2_id : conv.user1_id;
   const chatRes = await fetch(targetFunctionUrl, {
     method: "POST",
     headers: {
@@ -74,7 +88,7 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       conversation_id: convId,
-      sender_id: newSenderId,
+      sender_id: partnerId,
     }),
   });
   const chat = await chatRes.json();
@@ -90,7 +104,7 @@ Deno.serve(async (req) => {
     content: chat.content,
     conversation_id: convId,
     is_human: false,
-    sender_id: newSenderId,
+    sender_id: partnerId,
   });
   if (insertError) {
     return new Response(
