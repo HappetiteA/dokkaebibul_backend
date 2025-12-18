@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
     .eq("id", message_id)
     .single();
   if (msgError || !msg) {
-    return new Response(JSON.stringify({ error: "Conversation not found", details: msgError }), {
+    return new Response(JSON.stringify({ error: "Message not found", details: msgError }), {
       status: 404,
       headers: { "Content-Type": "application/json" },
     });
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
   const { data: conv, error: convError } = await supabase
     .from("conversations")
     .select("*")
-    .eq("conversation_id", convId)
+    .eq("id", convId)
     .single();
   if (convError || !conv) {
     return new Response(JSON.stringify({ error: "Conversation not found", details: convError }), {
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
   const { data: partner, error: partnerError } = await supabase
     .from("profiles")
     .select("is_ai_enabled")
-    .eq("id", partnerId)
+    .eq("user_id", partnerId)
     .single();
   if (partnerError || !partner) {
     return new Response(JSON.stringify({ error: "Partner not found", details: partnerError }), {
