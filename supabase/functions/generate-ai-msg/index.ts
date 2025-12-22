@@ -15,11 +15,11 @@ const openaiApiKey = Deno.env.get("OPENAI_API_KEY")!;
 const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey);
 
 Deno.serve(async (req) => {
-  const { conversation_id: convId, sender_id: senderId } = await req.json();
+  const { conversation_id: convId, sender_id: senderId, last_message: lastMsg } = await req.json();
 
   const { data: msgs, error: msgError } = await supabase
     .from("messages")
-    .select("sender_id, content, is_human")
+    .select("sender_id, content")
     .eq("conversation_id", convId)
     .order("created_at", { ascending: false })
     .limit(10);
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
 
   const prompt = `너는 사용자와 채팅을 하고 있다. 가장 최근 채팅 기록이 주어진다. 주어진 대화를 분석하여 대화 맥락과 너의 말투를 파악하고 사용자의 마지막 채팅에 이어질 채팅으로 가장 적절한 채팅을 출력하라. 출력은 오직 전송할 채팅만 포함하라.`;
 
-  const convertedMsg = convert_msgs(msgs, senderId);
+  const convertedMsg = convert_msgs([{ sender_id: "", content: lastMsg }, ...msgs], senderId);
   if (convertedMsg.at(-1)?.role !== "user") {
     return new Response(JSON.stringify({ error: "Last message is not user's" }), {
       headers: { "Content-Type": "application/json" },
@@ -64,9 +64,26 @@ Deno.serve(async (req) => {
   }
 
   const content = openaiData.choices[0].message.content;
-  return new Response(JSON.stringify({ content }), {
+
+  // insert ai chat to db
+  const { error: insertError } = await supabase.from("messages").insert({
+    content,
+    conversation_id: convId,
+    is_human: false,
+    sender_id: senderId,
+  });
+  if (insertError) {
+    return new Response(
+      JSON.stringify({ error: "Failed to insert ai chat", details: insertError }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+  return new Response(JSON.stringify(content), {
+    status: 201,
     headers: { "Content-Type": "application/json" },
-    status: openaiRes.status,
   });
 });
 
@@ -74,7 +91,6 @@ function convert_msgs(
   msgs: {
     sender_id: string;
     content: string;
-    is_human: boolean;
   }[],
   senderId: string // The ID of the primary user/assistant we are tracking as 'assistant'
 ): { role: "user" | "assistant"; content: string }[] {

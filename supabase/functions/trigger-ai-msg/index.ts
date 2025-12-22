@@ -15,29 +15,7 @@ const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey);
 
 Deno.serve(async (req) => {
-  const { message_id } = await req.json();
-  const { data: msg, error: msgError } = await supabase
-    .from("messages")
-    .select("*")
-    .eq("id", message_id)
-    .single();
-  if (msgError || !msg) {
-    return new Response(JSON.stringify({ error: "Message not found", details: msgError }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  // check if sended message is human's
-  if (!msg.is_human) {
-    return new Response(null, {
-      status: 204,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  const convId = msg.conversation_id;
-  const senderId = msg.sender_id;
+  const { conversation_id: convId, sender_id: senderId, message } = await req.json();
 
   const { data: conv, error: convError } = await supabase
     .from("conversations")
@@ -45,7 +23,9 @@ Deno.serve(async (req) => {
     .eq("id", convId)
     .single();
   if (convError || !conv) {
-    return new Response(JSON.stringify({ error: "Conversation not found", details: convError }), {
+    const newLocal_1 = JSON.stringify({ error: "Conversation not found", details: convError });
+    console.log(newLocal_1);
+    return new Response(newLocal_1, {
       status: 404,
       headers: { "Content-Type": "application/json" },
     });
@@ -60,7 +40,9 @@ Deno.serve(async (req) => {
     .eq("user_id", partnerId)
     .single();
   if (partnerError || !partner) {
-    return new Response(JSON.stringify({ error: "Partner not found", details: partnerError }), {
+    const newLocal_2 = JSON.stringify({ error: "Partner not found", details: partnerError });
+    console.log(newLocal_2);
+    return new Response(newLocal_2, {
       status: 404,
       headers: { "Content-Type": "application/json" },
     });
@@ -80,7 +62,7 @@ Deno.serve(async (req) => {
   // generate ai chat
   const targetFunctionUrl = `${supabaseUrl}/functions/v1/generate-ai-msg`;
 
-  const chatRes = await fetch(targetFunctionUrl, {
+  fetch(targetFunctionUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -89,32 +71,9 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       conversation_id: convId,
       sender_id: partnerId,
+      last_message: message,
     }),
   });
-  const chat = await chatRes.json();
-  if (!chatRes.ok) {
-    return new Response(JSON.stringify({ error: "Failed to generate ai chat", details: chat }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
 
-  // insert ai chat to db
-  const { error: insertError } = await supabase.from("messages").insert({
-    content: chat.content,
-    conversation_id: convId,
-    is_human: false,
-    sender_id: partnerId,
-  });
-  if (insertError) {
-    return new Response(
-      JSON.stringify({ error: "Failed to insert ai chat", details: insertError }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  }
-
-  return new Response(null, { status: 201, headers: { "Content-Type": "application/json" } });
+  return new Response(null, { status: 204, headers: { "Content-Type": "application/json" } });
 });
