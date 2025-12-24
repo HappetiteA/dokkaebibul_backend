@@ -10,12 +10,17 @@ import { createClient } from "npm:@supabase/supabase-js";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 const openaiApiKey = Deno.env.get("OPENAI_API_KEY")!;
 
 const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey);
 
 Deno.serve(async (req) => {
-  const { conversation_id: convId, sender_id: senderId, last_message: lastMsg } = await req.json();
+  const {
+    conversation_id: convId,
+    partner_id: partnerId,
+    last_message: lastMsg,
+  } = await req.json();
 
   const { data: msgs, error: msgError } = await supabase
     .from("messages")
@@ -25,20 +30,18 @@ Deno.serve(async (req) => {
     .limit(10);
 
   if (msgError || !msgs) {
-    return new Response(JSON.stringify({ error: "Messages not found", details: msgError }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
+    const errlog = JSON.stringify({ error: "Messages not found", details: msgError });
+    console.error(errlog);
+    return new Response(errlog, { status: 404, headers: { "Content-Type": "application/json" } });
   }
 
   const prompt = `너는 사용자와 채팅을 하고 있다. 가장 최근 채팅 기록이 주어진다. 주어진 대화를 분석하여 대화 맥락과 너의 말투를 파악하고 사용자의 마지막 채팅에 이어질 채팅으로 가장 적절한 채팅을 출력하라. 출력은 오직 전송할 채팅만 포함하라.`;
 
-  const convertedMsg = convert_msgs([{ sender_id: "", content: lastMsg }, ...msgs], senderId);
+  const convertedMsg = convert_msgs([{ sender_id: "", content: lastMsg }, ...msgs], partnerId);
   if (convertedMsg.at(-1)?.role !== "user") {
-    return new Response(JSON.stringify({ error: "Last message is not user's" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 400,
-    });
+    const errlog = JSON.stringify({ error: "Last message is not user's" });
+    console.error(errlog);
+    return new Response(errlog, { headers: { "Content-Type": "application/json" }, status: 400 });
   }
 
   const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -57,32 +60,29 @@ Deno.serve(async (req) => {
   const openaiData = await openaiRes.json();
 
   if (!openaiRes.ok) {
-    return new Response(JSON.stringify({ error: "Openai API call failed", details: openaiData }), {
-      headers: { "Content-Type": "application/json" },
-      status: 400,
-    });
+    const errlog = JSON.stringify({ error: "Openai API call failed", details: openaiData });
+    console.error(errlog);
+    return new Response(errlog, { headers: { "Content-Type": "application/json" }, status: 400 });
   }
 
   const content = openaiData.choices[0].message.content;
 
   // insert ai chat to db
-  const { error: insertError } = await supabase.from("messages").insert({
-    content,
-    conversation_id: convId,
-    is_human: false,
-    sender_id: senderId,
+  fetch(`${supabaseUrl}/functions/v1/insert-ai-msg`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${supabaseAnonKey}`,
+    },
+    body: JSON.stringify({
+      conversation_id: convId,
+      partner_id: partnerId,
+      content,
+    }),
   });
-  if (insertError) {
-    return new Response(
-      JSON.stringify({ error: "Failed to insert ai chat", details: insertError }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-  }
+
   return new Response(JSON.stringify(content), {
-    status: 201,
+    status: 200,
     headers: { "Content-Type": "application/json" },
   });
 });
