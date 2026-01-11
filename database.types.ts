@@ -74,6 +74,35 @@ export type Database = {
         }
         Relationships: []
       }
+      documents: {
+        Row: {
+          body: string
+          embedding: string | null
+          id: number
+          user_id: string
+        }
+        Insert: {
+          body: string
+          embedding?: string | null
+          id?: number
+          user_id: string
+        }
+        Update: {
+          body?: string
+          embedding?: string | null
+          id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       follows: {
         Row: {
           created_at: string
@@ -154,6 +183,7 @@ export type Database = {
       profiles: {
         Row: {
           coins: number
+          color_hex: string | null
           created_at: string
           is_ai_enabled: boolean
           is_banned: boolean
@@ -163,6 +193,7 @@ export type Database = {
         }
         Insert: {
           coins?: number
+          color_hex?: string | null
           created_at?: string
           is_ai_enabled?: boolean
           is_banned?: boolean
@@ -172,6 +203,7 @@ export type Database = {
         }
         Update: {
           coins?: number
+          color_hex?: string | null
           created_at?: string
           is_ai_enabled?: boolean
           is_banned?: boolean
@@ -232,12 +264,16 @@ export type Database = {
     }
     Functions: {
       match_documents: {
-        Args: { filter?: Json; match_count?: number; query_embedding: string }
+        Args: {
+          match_count: number
+          match_threshold: number
+          query_embedding: string
+        }
         Returns: {
-          content: string
-          id: string
-          metadata: Json
+          body: string
+          id: number
           similarity: number
+          user_id: string
         }[]
       }
       select_blocks: {
@@ -256,6 +292,8 @@ export type Database = {
         Returns: {
           created_at: string
           id: string
+          last_msg: string
+          last_msg_created_at: string
           user1_ai_enabled: boolean
           user1_chat_enabled: boolean
           user1_id: string
@@ -275,6 +313,7 @@ export type Database = {
           dst_id: string
           dst_name: string
           id: string
+          is_two_way: boolean
           src_id: string
           src_name: string
         }[]
@@ -288,6 +327,16 @@ export type Database = {
           id: string
           src_id: string
           src_name: string
+        }[]
+      }
+      select_nearby_users: {
+        Args: { max_distance: number; ref_lat: number; ref_lon: number }
+        Returns: {
+          distance: number
+          lat: number
+          lon: number
+          name: string
+          user_id: string
         }[]
       }
       select_profile_by_user_id: {
