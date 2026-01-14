@@ -17,40 +17,33 @@ const openaiApiKey = Deno.env.get("OPENAI_API_KEY")!;
 
 const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey);
 
+const embeddings = new OpenAIEmbeddings({
+  openAIApiKey: openaiApiKey,
+  modelName: "text-embedding-3-small",
+  dimensions: 384,
+});
+
+const vectorStore = new SupabaseVectorStore(embeddings, {
+  client: supabase,
+  tableName: "documents",
+  queryName: "match_documents",
+});
+
 Deno.serve(async (req) => {
   try {
     const {
       conversation_id: convId,
-      partner_id: partnerId,
+      sender_id,
+      partner_id,
       last_message: lastMsg,
     } = await req.json();
 
-    // 1. RAG: 유사한 과거 대화 기록 검색
-    const embeddings = new OpenAIEmbeddings({
-      openAIApiKey: openaiApiKey,
-      modelName: "text-embedding-3-small",
-      dimensions: 384,
-    });
-
-    const vectorStore = new SupabaseVectorStore(embeddings, {
-      client: supabase,
-      tableName: "documents",
-      queryName: "match_documents",
-    });
-
-    // 현재 사용자 입력과 유사한 스타일 로그 3개 검색
-    const similarDocs = await vectorStore.similaritySearch(lastMsg, 3, {
-      user_id: partnerId,
-      match_threshold: 0,
-    });
-    const logsText = similarDocs.map((doc) => doc.pageContent).join("\n---\n");
-
-    const dynamicStyleContext = `
-[주인의 과거 대화 기록 (참고용)]
-현재 상황과 유사한 과거 대화야. 이 말투와 대응 방식을 참고해서 답변해.
-
-${logsText}
-    `;
+    // 1. 과거 채팅 검색, 주인 맥락 로드, 현재 채팅 로드
+    const [dynamicStyleContext, personaContext, convertedMsg] = await Promise.all([
+      getRagContext(lastMsg, partner_id),
+      getPersonaContext(sender_id),
+      loadConversation(convId, lastMsg, partner_id),
+    ]);
 
     // 2. 시스템 프롬프트 구성 (JSON 포맷 강제)
     const systemPrompt = `
@@ -66,20 +59,9 @@ ${logsText}
     ]
 }
 반드시 위 JSON 문자열만 반환하고 추가 텍스트를 포함하지 마.
+${personaContext}
 ${dynamicStyleContext}
     `.trim();
-
-    // 3. 대화 기록 불러오기 및 변환
-    const { data: msgs, error: msgError } = await supabase
-      .from("messages")
-      .select("sender_id, content")
-      .eq("conversation_id", convId)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (msgError || !msgs) throw new Error("Messages not found");
-
-    const convertedMsg = convert_msgs([{ sender_id: "", content: lastMsg }, ...msgs], partnerId);
 
     // 4. OpenAI Chat Completion 호출
     const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -122,7 +104,7 @@ ${dynamicStyleContext}
         },
         body: JSON.stringify({
           conversation_id: convId,
-          partner_id: partnerId,
+          partner_id: partner_id,
           content: msg,
         }),
       });
@@ -138,18 +120,79 @@ ${dynamicStyleContext}
   }
 });
 
+/**
+ * 대화 기록 불러오기 및 변환
+ */
+async function loadConversation(convId: string, lastMsg: string, partner_id: string) {
+  const { data: msgs, error: msgError } = await supabase
+    .from("messages")
+    .select("sender_id, content")
+    .eq("conversation_id", convId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (msgError || !msgs) throw new Error("Messages not found");
+
+  const convertedMsg = convert_msgs([{ sender_id: "", content: lastMsg }, ...msgs], partner_id);
+  return convertedMsg;
+}
+
+/**
+ * 주인 맥락 프롬프트 구성
+ */
+async function getPersonaContext(sender_id: string) {
+  const { data: persona, error: personaError } = await supabase
+    .from("personas")
+    .select("*")
+    .eq("user_id", sender_id)
+    .limit(1);
+
+  if (personaError) throw personaError;
+  if (!persona) return "";
+
+  const { name, age, job, hobby, memo } = persona[0];
+  const personaContext = `
+[주인 프로필]
+${JSON.stringify({ name, age, job, hobby })}
+
+[주인 특징 및 메모]
+${memo.trim()}
+`;
+  return personaContext;
+}
+
+/**
+ * RAG: 유사한 과거 대화 기록 검색
+ */
+async function getRagContext(lastMsg: string, partner_id: string) {
+  // 현재 사용자 입력과 유사한 스타일 로그 3개 검색
+  const similarDocs = await vectorStore.similaritySearch(lastMsg, 3, {
+    user_id: partner_id,
+    match_threshold: 0,
+  });
+  const logsText = similarDocs.map((doc) => doc.pageContent).join("\n---\n");
+
+  const dynamicStyleContext = `
+[주인의 과거 대화 기록 (참고용)]
+현재 상황과 유사한 과거 대화야. 이 말투와 대응 방식을 참고해서 답변해.
+
+${logsText}
+    `;
+  return dynamicStyleContext;
+}
+
 function convert_msgs(
   msgs: {
     sender_id: string;
     content: string;
   }[],
-  senderId: string // The ID of the primary user/assistant we are tracking as 'assistant'
+  partnerId: string // The ID of the primary user/assistant we are tracking as 'assistant'
 ): { role: "user" | "assistant"; content: string }[] {
   const converted: { role: "user" | "assistant"; content: string }[] = [];
 
   for (let i = msgs.length - 1; i >= 0; i--) {
     const msg = msgs[i];
-    const currentRole: "user" | "assistant" = msg.sender_id === senderId ? "assistant" : "user";
+    const currentRole: "user" | "assistant" = msg.sender_id === partnerId ? "assistant" : "user";
     const lastConverted = converted[converted.length - 1];
     if (lastConverted && lastConverted.role === currentRole) {
       lastConverted.content = msg.content + "\n" + lastConverted.content;

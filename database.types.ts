@@ -84,7 +84,7 @@ export type Database = {
         Insert: {
           body: string
           embedding?: string | null
-          id?: number
+          id: number
           user_id: string
         }
         Update: {
@@ -180,34 +180,78 @@ export type Database = {
           },
         ]
       }
+      personas: {
+        Row: {
+          age: number
+          created_at: string | null
+          hobby: string
+          job: string
+          memo: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          age: number
+          created_at?: string | null
+          hobby: string
+          job: string
+          memo: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          age?: number
+          created_at?: string | null
+          hobby?: string
+          job?: string
+          memo?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_user"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           coins: number
-          color_hex: string | null
+          color_code: number | null
           created_at: string
           is_ai_enabled: boolean
           is_banned: boolean
           name: string
+          status_message: string
           updated_at: string
           user_id: string
         }
         Insert: {
           coins?: number
-          color_hex?: string | null
+          color_code?: number | null
           created_at?: string
           is_ai_enabled?: boolean
           is_banned?: boolean
           name: string
+          status_message?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           coins?: number
-          color_hex?: string | null
+          color_code?: number | null
           created_at?: string
           is_ai_enabled?: boolean
           is_banned?: boolean
           name?: string
+          status_message?: string
           updated_at?: string
           user_id?: string
         }
@@ -264,11 +308,7 @@ export type Database = {
     }
     Functions: {
       match_documents: {
-        Args: {
-          match_count: number
-          match_threshold: number
-          query_embedding: string
-        }
+        Args: { filter: Json; match_count: number; query_embedding: string }
         Returns: {
           body: string
           id: number

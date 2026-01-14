@@ -52,14 +52,14 @@ Deno.serve(async (req) => {
     }
 
     // 상대방 ID 결정 (Trigger의 CASE WHEN 로직)
-    const v_partner_id = convData.user1_id === sender_id ? convData.user2_id : convData.user1_id;
+    const partner_id = convData.user1_id === sender_id ? convData.user2_id : convData.user1_id;
 
     // 상대방의 profile 정보 (is_ai_enabled 체크용)
     // .select() 내의 join을 통해 partner 데이터를 가져옵니다.
     const { data: partnerProfile, error: partnerError } = await supabase
       .from("profiles")
       .select("is_ai_enabled")
-      .eq("user_id", v_partner_id)
+      .eq("user_id", partner_id)
       .single();
     if (partnerError || !partnerProfile) {
       throw new Error(`Conversation not found: ${partnerError?.message}`);
@@ -101,7 +101,8 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           conversation_id,
-          partner_id: v_partner_id,
+          sender_id,
+          partner_id,
           last_message: content,
         }),
       }).catch((err) => console.error("AI Generation function error:", err));
