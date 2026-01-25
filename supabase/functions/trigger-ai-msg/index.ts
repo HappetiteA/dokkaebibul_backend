@@ -18,23 +18,7 @@ Deno.serve(async (req) => {
     // 1. 트리거로부터 전달받은 데이터 추출 (NEW 레코드)
     const { conversation_id, sender_id, content, is_human } = await req.json();
 
-    // 사람이 보낸 메시지가 아니면 즉시 종료
-    if (!is_human) {
-      return new Response("Not a human message, skipping.", { status: 200 });
-    }
-
-    // --- 1.1. 임베딩 삽입 함수 호출 (비동기 처리 유도) ---
-    // Edge Function은 비동기 fetch를 기다리지 않고 바로 다음 로직을 진행할 수 있습니다.
-    fetch(`${supabaseUrl}/functions/v1/insert-embedding`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ conversation_id, sender_id, content }),
-    }).catch((err) => console.error("Embedding function error:", err));
-
-    // --- 2. 대화 정보 및 상대방 프로필 조회 ---
+    // --- 2. 대화 정보 조회 ---
     const { data: convData, error: convError } = await supabase
       .from("conversations")
       .select(
@@ -51,21 +35,62 @@ Deno.serve(async (req) => {
       throw new Error(`Conversation not found: ${convError?.message}`);
     }
 
-    // 상대방 ID 결정 (Trigger의 CASE WHEN 로직)
     const partner_id = convData.user1_id === sender_id ? convData.user2_id : convData.user1_id;
 
     // 상대방의 profile 정보 (is_ai_enabled 체크용)
     // .select() 내의 join을 통해 partner 데이터를 가져옵니다.
     const { data: partnerProfile, error: partnerError } = await supabase
       .from("profiles")
-      .select("is_ai_enabled,coins")
+      .select("is_ai_enabled,coins,name")
       .eq("user_id", partner_id)
       .single();
     if (partnerError || !partnerProfile) {
       throw new Error(`Conversation not found: ${partnerError?.message}`);
     }
 
-    // --- 3. 로직 평가 ---
+    // 2.1. Fetch the push token for the specific partner
+    const { data: tokenData, error: tokenError } = await supabase
+      .from("user_push_tokens")
+      .select("expo_push_token")
+      .eq("user_id", partner_id);
+
+    if (tokenError || !tokenData) {
+      throw new Error("Push token not found for this user.");
+    }
+
+    const messages = tokenData.map((row) => ({
+      to: row.expo_push_token,
+      title: partnerProfile.name,
+      body: content,
+      sound: "default", // iOS
+    }));
+
+    fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(messages),
+    });
+
+    // 사람이 보낸 메시지가 아니면 종료
+    if (!is_human) {
+      return new Response("Not a human message, skipping.", { status: 200 });
+    }
+
+    // --- 3. 임베딩 삽입 함수 호출 (비동기 처리 유도) ---
+    // Edge Function은 비동기 fetch를 기다리지 않고 바로 다음 로직을 진행할 수 있습니다.
+    fetch(`${supabaseUrl}/functions/v1/insert-embedding`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ conversation_id, sender_id, content }),
+    }).catch((err) => console.error("Embedding function error:", err));
+
+    // --- 3.1. 로직 평가 ---
     let v_should_trigger = false;
 
     if (sender_id === convData.user1_id) {
