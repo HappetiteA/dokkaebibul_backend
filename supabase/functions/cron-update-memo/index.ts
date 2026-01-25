@@ -7,6 +7,8 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 Deno.serve(async (req) => {
   try {
+    // 0. 모든 유저 coin 초기화
+    supabase.from("profiles").update({ coins: 10 });
     // 1. 모든 유저 ID 조회
     const { data: users, error: userError } = await supabase.from("profiles").select("user_id");
 
@@ -24,8 +26,8 @@ Deno.serve(async (req) => {
       console.log(
         `Processing chunk: ${i / CHUNK_SIZE + 1} (Users ${i + 1} to ${Math.min(
           i + CHUNK_SIZE,
-          users.length
-        )})`
+          users.length,
+        )})`,
       );
 
       // 현재 청크의 유저들을 병렬로 처리
@@ -47,7 +49,7 @@ Deno.serve(async (req) => {
           } catch (e) {
             return { user_id: user.user_id, status: "error", error: (e as any).message };
           }
-        })
+        }),
       );
 
       results.push(...chunkResults);
@@ -66,7 +68,7 @@ Deno.serve(async (req) => {
       }),
       {
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (error) {
     console.error("Batch Update Error:", (error as any).message);

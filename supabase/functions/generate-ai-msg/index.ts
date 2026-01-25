@@ -64,6 +64,11 @@ ${dynamicStyleContext}
     `.trim();
 
     // 4. OpenAI Chat Completion 호출
+    const { error: rpcError } = await supabase.rpc("subtract_coin", {
+      target_user_id: partner_id,
+    });
+    if (rpcError) throw rpcError;
+
     const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -186,7 +191,7 @@ function convert_msgs(
     sender_id: string;
     content: string;
   }[],
-  partnerId: string // The ID of the primary user/assistant we are tracking as 'assistant'
+  partnerId: string, // The ID of the primary user/assistant we are tracking as 'assistant'
 ): { role: "user" | "assistant"; content: string }[] {
   const converted: { role: "user" | "assistant"; content: string }[] = [];
 

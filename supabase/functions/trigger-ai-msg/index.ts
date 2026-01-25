@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
         user1_id, user2_id, 
         user1_chat_enabled, user1_ai_enabled, 
         user2_chat_enabled, user2_ai_enabled
-      `
+      `,
       )
       .eq("id", conversation_id)
       .single();
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     // .select() 내의 join을 통해 partner 데이터를 가져옵니다.
     const { data: partnerProfile, error: partnerError } = await supabase
       .from("profiles")
-      .select("is_ai_enabled")
+      .select("is_ai_enabled,coins")
       .eq("user_id", partner_id)
       .single();
     if (partnerError || !partnerProfile) {
@@ -88,10 +88,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(JSON.stringify({ v_should_trigger, sender_id, partnerProfile, convData }));
-
     // --- 4. 조건 충족 시 AI 메시지 생성 함수 호출 ---
-    if (v_should_trigger) {
+    if (v_should_trigger && partnerProfile.coins > 0) {
       // 응답을 기다리지 않고 호출하여 트리거 속도 유지
       fetch(`${supabaseUrl}/functions/v1/generate-ai-msg`, {
         method: "POST",

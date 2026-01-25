@@ -126,16 +126,19 @@ export type Database = {
       }
       locations: {
         Row: {
+          is_public: boolean
           location: unknown
           updated_at: string
           user_id: string
         }
         Insert: {
+          is_public?: boolean
           location: unknown
           updated_at?: string
           user_id: string
         }
         Update: {
+          is_public?: boolean
           location?: unknown
           updated_at?: string
           user_id?: string
@@ -320,6 +323,7 @@ export type Database = {
         Args: never
         Returns: {
           created_at: string
+          dst_color_code: number
           dst_id: string
           dst_name: string
           id: string
@@ -336,11 +340,13 @@ export type Database = {
           last_msg_created_at: string
           user1_ai_enabled: boolean
           user1_chat_enabled: boolean
+          user1_color_code: number
           user1_id: string
           user1_name: string
           user1_noti_enabled: boolean
           user2_ai_enabled: boolean
           user2_chat_enabled: boolean
+          user2_color_code: number
           user2_id: string
           user2_name: string
           user2_noti_enabled: boolean
@@ -354,6 +360,7 @@ export type Database = {
           dst_name: string
           id: string
           is_two_way: boolean
+          src_color_code: number
           src_id: string
           src_name: string
         }[]
@@ -362,11 +369,20 @@ export type Database = {
         Args: never
         Returns: {
           created_at: string
+          dst_color_code: number
           dst_id: string
           dst_name: string
           id: string
           src_id: string
           src_name: string
+        }[]
+      }
+      select_my_location: {
+        Args: never
+        Returns: {
+          is_public: boolean
+          lat: number
+          lon: number
         }[]
       }
       select_nearby_users: {
@@ -376,19 +392,27 @@ export type Database = {
           lat: number
           lon: number
           name: string
+          user_color_code: number
           user_id: string
         }[]
       }
       select_profile_by_user_id: {
         Args: { uid: string }
         Returns: {
+          color_code: number
           name: string
+          status_message: string
           user_id: string
         }[]
       }
+      subtract_coin: { Args: { target_user_id: string }; Returns: undefined }
       update_conversations_chat_enabled: {
         Args: { new_chat_enabled: boolean; u1id: string; u2id: string }
         Returns: boolean
+      }
+      update_user_profile_and_location: {
+        Args: { p_is_public: boolean; p_name: string; p_status_message: string }
+        Returns: undefined
       }
     }
     Enums: {
