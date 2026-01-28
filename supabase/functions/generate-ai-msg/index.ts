@@ -146,44 +146,52 @@ async function loadConversation(convId: string, lastMsg: string, partner_id: str
  * 주인 맥락 프롬프트 구성
  */
 async function getPersonaContext(sender_id: string) {
-  const { data: persona, error: personaError } = await supabase
-    .from("personas")
-    .select("*")
-    .eq("user_id", sender_id)
-    .limit(1);
+  try {
+    const { data: persona, error: personaError } = await supabase
+      .from("personas")
+      .select("*")
+      .eq("user_id", sender_id)
+      .limit(1);
 
-  if (personaError) throw personaError;
-  if (!persona) return "";
+    if (personaError) throw personaError;
+    if (!persona) return "";
 
-  const { name, age, job, hobby, memo } = persona[0];
-  const personaContext = `
+    const { name, age, job, hobby, memo } = persona[0];
+    const personaContext = `
 [주인 프로필]
 ${JSON.stringify({ name, age, job, hobby })}
 
 [주인 특징 및 메모]
 ${memo.trim()}
 `;
-  return personaContext;
+    return personaContext;
+  } catch {
+    return "";
+  }
 }
 
 /**
  * RAG: 유사한 과거 대화 기록 검색
  */
 async function getRagContext(lastMsg: string, partner_id: string) {
-  // 현재 사용자 입력과 유사한 스타일 로그 3개 검색
-  const similarDocs = await vectorStore.similaritySearch(lastMsg, 3, {
-    user_id: partner_id,
-    match_threshold: 0,
-  });
-  const logsText = similarDocs.map((doc) => doc.pageContent).join("\n---\n");
+  try {
+    // 현재 사용자 입력과 유사한 스타일 로그 3개 검색
+    const similarDocs = await vectorStore.similaritySearch(lastMsg, 3, {
+      user_id: partner_id,
+      match_threshold: 0,
+    });
+    const logsText = similarDocs.map((doc) => doc.pageContent).join("\n---\n");
 
-  const dynamicStyleContext = `
+    const dynamicStyleContext = `
 [주인의 과거 대화 기록 (참고용)]
 현재 상황과 유사한 과거 대화야. 이 말투와 대응 방식을 참고해서 답변해.
 
 ${logsText}
     `;
-  return dynamicStyleContext;
+    return dynamicStyleContext;
+  } catch {
+    return "";
+  }
 }
 
 function convert_msgs(
