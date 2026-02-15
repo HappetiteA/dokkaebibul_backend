@@ -37,15 +37,14 @@ Deno.serve(async (req) => {
 
     const partner_id = convData.user1_id === sender_id ? convData.user2_id : convData.user1_id;
 
-    // 상대방의 profile 정보 (is_ai_enabled 체크용)
-    // .select() 내의 join을 통해 partner 데이터를 가져옵니다.
-    const { data: partnerProfile, error: partnerError } = await supabase
+    // 나의 profile 이름
+    const { data: myProfile, error: myError } = await supabase
       .from("profiles")
-      .select("is_ai_enabled,coins,name")
-      .eq("user_id", partner_id)
+      .select("name")
+      .eq("user_id", sender_id)
       .single();
-    if (partnerError || !partnerProfile) {
-      throw new Error(`Conversation not found: ${partnerError?.message}`);
+    if (myError || !myProfile) {
+      throw new Error(`Conversation not found: ${myError?.message}`);
     }
 
     // 2.1. Fetch the push token for the specific partner
@@ -60,7 +59,7 @@ Deno.serve(async (req) => {
 
     const messages = tokenData.map((row) => ({
       to: row.expo_push_token,
-      title: partnerProfile.name,
+      title: myProfile.name,
       body: content,
       sound: "default", // iOS
     }));
@@ -89,6 +88,17 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({ conversation_id, sender_id, content }),
     }).catch((err) => console.error("Embedding function error:", err));
+
+    // 상대방의 profile 정보 (is_ai_enabled 체크용)
+    // .select() 내의 join을 통해 partner 데이터를 가져옵니다.
+    const { data: partnerProfile, error: partnerError } = await supabase
+      .from("profiles")
+      .select("is_ai_enabled,coins")
+      .eq("user_id", partner_id)
+      .single();
+    if (partnerError || !partnerProfile) {
+      throw new Error(`Conversation not found: ${partnerError?.message}`);
+    }
 
     // --- 3.1. 로직 평가 ---
     let v_should_trigger = false;
