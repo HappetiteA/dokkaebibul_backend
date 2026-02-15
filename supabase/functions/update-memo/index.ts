@@ -7,6 +7,7 @@ const openaiApiKey = Deno.env.get("OPENAI_API_KEY")!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
+// This function name is update-memo, but actually, it updates memory instead of memo. It's because memo field was split into memo and memory fields.
 Deno.serve(async (req) => {
   try {
     // 1. 요청 본문에서 user_id 추출
@@ -22,7 +23,7 @@ Deno.serve(async (req) => {
         .from("conversations")
         .select("id")
         .or(`user1_id.eq.${user_id},user2_id.eq.${user_id}`),
-      supabase.from("personas").select("memo").eq("user_id", user_id).single(),
+      supabase.from("personas").select("memory").eq("user_id", user_id).single(),
     ]);
 
     if (!convs || convs.length === 0) {
@@ -34,7 +35,7 @@ Deno.serve(async (req) => {
     if (persona === null) {
       return new Response(JSON.stringify({ message: "No persona found. Skipping AI update." }));
     }
-    const currentMemo = persona.memo;
+    const currentMemory = persona.memory;
 
     // 실제 데이터 대신 갯수만 확인
     const { count } = await supabase
@@ -45,7 +46,7 @@ Deno.serve(async (req) => {
 
     if (count === 0) {
       return new Response(
-        JSON.stringify({ message: "No recent conversation. Skipping AI update." })
+        JSON.stringify({ message: "No recent conversation. Skipping AI update." }),
       );
     }
 
@@ -86,7 +87,7 @@ Deno.serve(async (req) => {
 너는 '주인'의 비서로서, 주인의 성격, 취향, 특이사항 등을 기록하는 메모를 관리하고 있어.
 
 [현재 메모]
-${currentMemo}
+${currentMemory}
 
 [최근 대화 기록 모음]
 ${formattedHistory}
@@ -116,12 +117,12 @@ ${formattedHistory}
     });
 
     const openaiData = await openaiRes.json();
-    const newMemo = openaiData.choices[0].message.content;
+    const newMemory = openaiData.choices[0].message.content;
 
     // 7. DB에 업데이트된 메모 저장
     const { error: updateError } = await supabase
       .from("personas")
-      .update({ memo: newMemo })
+      .update({ memory: newMemory })
       .eq("user_id", user_id);
 
     if (updateError) throw updateError;
@@ -129,12 +130,12 @@ ${formattedHistory}
     return new Response(
       JSON.stringify({
         success: true,
-        updated_memo: newMemo,
+        updated_memory: newMemory,
       }),
       {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (error) {
     return new Response(JSON.stringify({ error: (error as any).message }), { status: 500 });

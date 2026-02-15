@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     // 1. 과거 채팅 검색, 주인 맥락 로드, 현재 채팅 로드
     const [dynamicStyleContext, personaContext, convertedMsg] = await Promise.all([
       getRagContext(lastMsg, partner_id),
-      getPersonaContext(sender_id),
+      getPersonaContext(partner_id),
       loadConversation(conversation_id, lastMsg, partner_id, isSelf),
     ]);
 
@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
 ${personaContext}
 ${dynamicStyleContext}
     `.trim();
+    console.log(systemPrompt);
 
     // 4. OpenAI Chat Completion 호출
     const { error: rpcError } = await supabase.rpc("subtract_coin", {
@@ -161,12 +162,12 @@ async function loadConversation(
 /**
  * 주인 맥락 프롬프트 구성
  */
-async function getPersonaContext(sender_id: string) {
+async function getPersonaContext(partner_id: string) {
   try {
     const { data: persona, error: personaError } = await supabase
       .from("personas")
       .select("*")
-      .eq("user_id", sender_id)
+      .eq("user_id", partner_id)
       .limit(1);
 
     if (personaError) throw personaError;

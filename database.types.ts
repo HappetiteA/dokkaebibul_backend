@@ -84,7 +84,7 @@ export type Database = {
         Insert: {
           body: string
           embedding?: string | null
-          id: number
+          id?: number
           user_id: string
         }
         Update: {
@@ -185,31 +185,34 @@ export type Database = {
       }
       personas: {
         Row: {
-          age: number
+          age: string
           created_at: string | null
           hobby: string
           job: string
           memo: string
+          memory: string
           name: string
           updated_at: string | null
           user_id: string
         }
         Insert: {
-          age: number
+          age: string
           created_at?: string | null
           hobby: string
           job: string
           memo: string
+          memory?: string
           name: string
           updated_at?: string | null
           user_id: string
         }
         Update: {
-          age?: number
+          age?: string
           created_at?: string | null
           hobby?: string
           job?: string
           memo?: string
+          memory?: string
           name?: string
           updated_at?: string | null
           user_id?: string
@@ -310,6 +313,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_me: { Args: never; Returns: undefined }
       match_documents: {
         Args: { filter: Json; match_count: number; query_embedding: string }
         Returns: {

@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
       .select("content, sender_id")
       .eq("conversation_id", conversation_id)
       .order("created_at", { ascending: false })
-      .limit(1); // 트리거 시점에 이미 새 메시지가 저장되어 있다면 limit(2) 후 2번째 것을 사용해야 할 수 있습니다.
+      .limit(2); // 트리거 시점에 이미 새 메시지가 저장되어 있다면 limit(2) 후 2번째 것을 사용해야 할 수 있습니다.
 
     if (fetchError) throw fetchError;
 
@@ -39,7 +39,10 @@ Deno.serve(async (req) => {
     let combinedText = "";
 
     if (previousMessages && previousMessages.length > 0) {
-      const prev = previousMessages[0];
+      const prev =
+        previousMessages[0].content !== newMessageContent
+          ? previousMessages[0]
+          : previousMessages[1];
       const prevPrefix = prev.sender_id === sender_id ? "나: " : "상대: ";
       combinedText += `${prevPrefix}${prev.content}\n`;
     }
