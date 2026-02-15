@@ -13,7 +13,6 @@ const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 const supabase = createClient<Database>(supabaseUrl, supabaseServiceRoleKey);
 
 Deno.serve(async (req) => {
-  console.log(`Bearer ${supabaseAnonKey}`);
   try {
     // 1. 트리거로부터 전달받은 데이터 추출 (NEW 레코드)
     const { conversation_id, sender_id, content, is_human } = await req.json();

@@ -31,18 +31,25 @@ const vectorStore = new SupabaseVectorStore(embeddings, {
 
 Deno.serve(async (req) => {
   try {
-    const {
-      conversation_id: convId,
-      sender_id,
-      partner_id,
-      last_message: lastMsg,
-    } = await req.json();
+    const { conversation_id, sender_id, partner_id, last_message: lastMsg } = await req.json();
+
+    // 0. 나와의 대화 여부 확인
+    const { data: convData, error: convError } = await supabase
+      .from("conversations")
+      .select("user1_id, user2_id")
+      .eq("id", conversation_id)
+      .single();
+    if (convError || !convData) {
+      throw new Error(`Conversation not found: ${convError?.message}`);
+    }
+
+    const isSelf = convData.user1_id === convData.user2_id;
 
     // 1. 과거 채팅 검색, 주인 맥락 로드, 현재 채팅 로드
     const [dynamicStyleContext, personaContext, convertedMsg] = await Promise.all([
       getRagContext(lastMsg, partner_id),
       getPersonaContext(sender_id),
-      loadConversation(convId, lastMsg, partner_id),
+      loadConversation(conversation_id, lastMsg, partner_id, isSelf),
     ]);
 
     // 2. 시스템 프롬프트 구성 (JSON 포맷 강제)
@@ -108,7 +115,7 @@ ${dynamicStyleContext}
           Authorization: `Bearer ${supabaseAnonKey}`,
         },
         body: JSON.stringify({
-          conversation_id: convId,
+          conversation_id: conversation_id,
           partner_id: partner_id,
           content: msg,
         }),
@@ -128,17 +135,26 @@ ${dynamicStyleContext}
 /**
  * 대화 기록 불러오기 및 변환
  */
-async function loadConversation(convId: string, lastMsg: string, partner_id: string) {
+async function loadConversation(
+  convId: string,
+  lastMsg: string,
+  partner_id: string,
+  isSelf: boolean,
+) {
   const { data: msgs, error: msgError } = await supabase
     .from("messages")
-    .select("sender_id, content")
+    .select("sender_id, content, is_human")
     .eq("conversation_id", convId)
     .order("created_at", { ascending: false })
     .limit(10);
 
   if (msgError || !msgs) throw new Error("Messages not found");
 
-  const convertedMsg = convert_msgs([{ sender_id: "", content: lastMsg }, ...msgs], partner_id);
+  const convertedMsg = convert_msgs(
+    [{ sender_id: "", content: lastMsg, is_human: true }, ...msgs],
+    partner_id,
+    isSelf,
+  );
   return convertedMsg;
 }
 
@@ -156,13 +172,15 @@ async function getPersonaContext(sender_id: string) {
     if (personaError) throw personaError;
     if (!persona) return "";
 
-    const { name, age, job, hobby, memo } = persona[0];
+    const { name, age, job, hobby, memo, memory } = persona[0];
     const personaContext = `
 [주인 프로필]
 ${JSON.stringify({ name, age, job, hobby })}
 
 [주인 특징 및 메모]
 ${memo.trim()}
+
+${memory.trim()}
 `;
     return personaContext;
   } catch {
@@ -198,14 +216,17 @@ function convert_msgs(
   msgs: {
     sender_id: string;
     content: string;
+    is_human: boolean;
   }[],
   partnerId: string, // The ID of the primary user/assistant we are tracking as 'assistant'
+  isSelf: boolean, // flag of self
 ): { role: "user" | "assistant"; content: string }[] {
   const converted: { role: "user" | "assistant"; content: string }[] = [];
 
   for (let i = msgs.length - 1; i >= 0; i--) {
     const msg = msgs[i];
-    const currentRole: "user" | "assistant" = msg.sender_id === partnerId ? "assistant" : "user";
+    const currentRole: "user" | "assistant" =
+      (isSelf && msg.is_human) || msg.sender_id !== partnerId ? "user" : "assistant";
     const lastConverted = converted[converted.length - 1];
     if (lastConverted && lastConverted.role === currentRole) {
       lastConverted.content = msg.content + "\n" + lastConverted.content;
