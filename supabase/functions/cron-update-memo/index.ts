@@ -8,7 +8,11 @@ const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 Deno.serve(async (req) => {
   try {
     // 0. 모든 유저 coin 초기화
-    supabase.from("profiles").update({ coins: 10 });
+    supabase
+      .from("profiles")
+      .update({ coins: 10 })
+      .neq("user_id", "00000000-0000-0000-0000-000000000000");
+
     // 1. 모든 유저 ID 조회
     const { data: users, error: userError } = await supabase.from("profiles").select("user_id");
 
