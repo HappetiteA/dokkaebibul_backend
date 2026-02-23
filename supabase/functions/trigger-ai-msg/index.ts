@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
       title: myProfile.name,
       body: content,
       sound: "default", // iOS
+      data: { conversation_id },
     }));
 
     fetch("https://exp.host/--/api/v2/push/send", {
