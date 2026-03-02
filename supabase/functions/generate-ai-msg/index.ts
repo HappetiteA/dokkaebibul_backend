@@ -202,10 +202,10 @@ async function getPersonaContext(partner_id: string) {
     if (personaError) throw personaError;
     if (!persona) return "";
 
-    const { name, age, job, hobby, memo, memory } = persona[0];
+    const { name, age, job, memo, memory } = persona[0];
     const personaContext = `
 [주인 프로필]
-${JSON.stringify({ name, age, job, hobby })}
+${JSON.stringify({ name, age, job })}
 
 [주인 특징 및 메모]
 ${memo.trim()}

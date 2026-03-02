@@ -187,7 +187,6 @@ export type Database = {
         Row: {
           age: string
           created_at: string | null
-          hobby: string
           job: string
           memo: string
           memory: string
@@ -198,7 +197,6 @@ export type Database = {
         Insert: {
           age: string
           created_at?: string | null
-          hobby: string
           job: string
           memo: string
           memory?: string
@@ -209,7 +207,6 @@ export type Database = {
         Update: {
           age?: string
           created_at?: string | null
-          hobby?: string
           job?: string
           memo?: string
           memory?: string
