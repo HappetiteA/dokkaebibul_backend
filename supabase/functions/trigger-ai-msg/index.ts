@@ -46,6 +46,22 @@ Deno.serve(async (req) => {
       throw new Error(`Conversation not found: ${myError?.message}`);
     }
 
+    const { data: blockData, error: blockError } = await supabase
+      .from("blocks")
+      .select("*")
+      .or(
+        `and(src_id.eq.${sender_id},dst_id.eq.${partner_id}),and(src_id.eq.${partner_id},dst_id.eq.${sender_id})`,
+      )
+      .maybeSingle(); // Use .maybeSingle() if you expect 0 or 1 result
+
+    if (blockError) {
+      throw new Error(`Error checking block status: ${blockError.message}`);
+    }
+
+    if (blockData === null) {
+      return new Response("The message was blocked", { status: 200 });
+    }
+
     // 2.1. Fetch the push token for the specific partner
     const { data: tokenData, error: tokenError } = await supabase
       .from("user_push_tokens")
